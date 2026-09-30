@@ -33,7 +33,10 @@ export interface ProviderFetchArgs {
 }
 export interface ProviderAdapter {
   id: string
+  /** Display name, also used for accounts discovered from Harness credentials. */
   label: string
+  /** Built-in providers are either subscription quotas or pay-as-you-go balances. */
+  kind: Exclude<AccountKind, 'relay'>
   fetch(args: ProviderFetchArgs): Promise<AccountBalance>
 }
 export interface ProviderConfig { region?: string }
@@ -64,8 +67,21 @@ export interface AccountView {
   error?: string
   attemptedAt?: number
 }
+/** Built-in provider metadata sent to the browser for the connection form. */
+export interface ProviderInfo {
+  id: string
+  label: string
+  kind: ProviderAdapter['kind']
+}
+/** Global alert thresholds applied to accounts without their own override. */
+export interface AlertDefaults {
+  alertPercent: number
+  lowBalance: number
+}
 export interface QuotaSnapshot {
   accounts: AccountView[]
+  providers: ProviderInfo[]
+  defaults: AlertDefaults
   refreshedAt?: number
   refreshing: boolean
   intervalMinutes: number

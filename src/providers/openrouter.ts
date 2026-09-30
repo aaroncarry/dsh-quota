@@ -34,6 +34,7 @@ function money(value: number): string {
 export const openrouterAdapter: ProviderAdapter = {
 	id: "openrouter",
 	label: "OpenRouter",
+	kind: "api",
 	async fetch({ token, signal, fetchImpl }: ProviderFetchArgs): Promise<AccountBalance> {
 		const response = await fetchImpl(ENDPOINT, {
 			headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },

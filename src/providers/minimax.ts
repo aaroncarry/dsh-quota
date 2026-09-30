@@ -1,15 +1,12 @@
 /** MiniMax Token Plan and pay-as-you-go account balance adapter. */
 
-import { parseTimestamp, toNumber } from "../parse.ts";
+import { asRecord, parseTimestamp, toNumber } from "../parse.ts";
 import type { AccountBalance, MoneyBalance, ProviderAdapter, ProviderFetchArgs, UsageWindow } from "../types.ts";
 
 const ROOTS = { global: "https://api.minimax.io", cn: "https://api.minimaxi.com" } as const;
 
 type MiniMaxRow = Record<string, unknown>;
 
-function object(value: unknown): MiniMaxRow | undefined {
-	return typeof value === "object" && value !== null && !Array.isArray(value) ? value as MiniMaxRow : undefined;
-}
 function integer(value: unknown): number | undefined {
 	const n = toNumber(value);
 	return n !== undefined && Number.isSafeInteger(n) && n >= 0 ? n : undefined;
@@ -55,6 +52,7 @@ function parseWindow(row: MiniMaxRow, prefix: "current_interval" | "current_week
 export const minimaxAdapter: ProviderAdapter = {
 	id: "minimax",
 	label: "MiniMax",
+	kind: "subscription",
 	async fetch({ token, signal, fetchImpl, options }: ProviderFetchArgs): Promise<AccountBalance> {
 		return fetchMiniMax("minimax", token, signal, fetchImpl, options);
 	},
@@ -63,6 +61,7 @@ export const minimaxAdapter: ProviderAdapter = {
 export const minimaxCnAdapter: ProviderAdapter = {
 	id: "minimax-cn",
 	label: "MiniMax CN",
+	kind: "subscription",
 	async fetch({ token, signal, fetchImpl, options }: ProviderFetchArgs): Promise<AccountBalance> {
 		return fetchMiniMax("minimax-cn", token, signal, fetchImpl, options);
 	},
@@ -75,8 +74,8 @@ async function fetchMiniMax(id: "minimax" | "minimax-cn", token: string, signal:
 	const response = await fetchImpl(endpoint, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, signal });
 	if (!response.ok) throw new Error(`MiniMax usage API returned HTTP ${response.status}`);
 	const body: unknown = await response.json();
-	const payload = object(body);
-	if (!payload || (object(payload.base_resp)?.status_code !== 0 && payload.base_resp !== undefined)) throw new Error("MiniMax usage API returned an unsuccessful response");
+	const payload = asRecord(body);
+	if (!payload || (asRecord(payload.base_resp)?.status_code !== 0 && payload.base_resp !== undefined)) throw new Error("MiniMax usage API returned an unsuccessful response");
 	const currency = id === "minimax-cn" ? "CNY" : "USD";
 	if (isBalance) {
 		const available = amount(payload.available_amount);
@@ -91,7 +90,7 @@ async function fetchMiniMax(id: "minimax" | "minimax-cn", token: string, signal:
 	if (!Array.isArray(payload.model_remains) || payload.model_remains.length === 0) throw new Error("MiniMax Token Plan returned no quota rows");
 	const windows: UsageWindow[] = [];
 	for (const [index, raw] of payload.model_remains.entries()) {
-		const row = object(raw);
+		const row = asRecord(raw);
 		if (!row) continue;
 		const model = labelFor(row, `quota ${index + 1}`);
 		const interval = parseWindow(row, "current_interval", `${model} rolling`);

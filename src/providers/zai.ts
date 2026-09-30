@@ -9,6 +9,7 @@
  *    fallback regardless of region; a failure never breaks quota display.
  */
 
+import { parseTimestamp } from "../parse.ts";
 import type { AccountBalance, MoneyBalance, ProviderAdapter, ProviderFetchArgs, UsageWindow } from "../types.ts";
 
 const QUOTA_PATH = "/api/monitor/usage/quota/limit";
@@ -57,11 +58,6 @@ function optionalInt(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isInteger(value) ? value : undefined;
 }
 
-/** z.ai mixes seconds and milliseconds epochs; disambiguate by magnitude. */
-function normalizeEpoch(value: number): number {
-	return value < 1e12 ? value * 1000 : value;
-}
-
 function parseLimit(raw: unknown): ParsedLimit | undefined {
 	if (typeof raw !== "object" || raw === null) return undefined;
 	const limit = raw as ZaiLimit;
@@ -80,7 +76,7 @@ function parseLimit(raw: unknown): ParsedLimit | undefined {
 		type: limit.type,
 		percent: limit.percentage,
 		windowMinutes,
-		resetsAt: reset !== undefined ? normalizeEpoch(reset) : undefined,
+		resetsAt: parseTimestamp(reset),
 		detail,
 	};
 }
@@ -170,7 +166,8 @@ async function fetchCnBalance(
 
 export const zaiAdapter: ProviderAdapter = {
 	id: "zai",
-	label: "GLM",
+	label: "Z.AI",
+	kind: "subscription",
 	async fetch({ token, signal, fetchImpl, options }: ProviderFetchArgs): Promise<AccountBalance> {
 		const region = options.region === "global" ? "global" : options.region === "cn" ? "cn" : "auto";
 		const bases = region === "auto" ? [BASES.global, BASES.cn] : [BASES[region]];
@@ -195,6 +192,6 @@ export const zaiAdapter: ProviderAdapter = {
 		if (windows.length === 0 && !balance) {
 			throw new Error(quotaFailure ? `z.ai: ${quotaFailure}` : "z.ai returned no usage data");
 		}
-		return { providerId: "zai", label: "GLM", plan, windows, balance, notes: [], fetchedAt: Date.now() };
+		return { providerId: "zai", label: "Z.AI", plan, windows, balance, notes: [], fetchedAt: Date.now() };
 	},
 };

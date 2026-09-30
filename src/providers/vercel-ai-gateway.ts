@@ -11,6 +11,7 @@ function amount(value: unknown): number | undefined {
 export const vercelAIGatewayAdapter: ProviderAdapter = {
 	id: "vercel-ai-gateway",
 	label: "Vercel AI Gateway",
+	kind: "api",
 	async fetch({ token, signal, fetchImpl }: ProviderFetchArgs): Promise<AccountBalance> {
 		const response = await fetchImpl(ENDPOINT, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, signal });
 		if (!response.ok) throw new Error(`Vercel AI Gateway credits API returned HTTP ${response.status}`);

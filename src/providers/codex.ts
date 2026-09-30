@@ -6,7 +6,7 @@
  */
 
 import { accountIdFromToken } from "../credentials.ts";
-import { toNumber } from "../parse.ts";
+import { parseTimestamp, toNumber } from "../parse.ts";
 import type { AccountBalance, ProviderAdapter, ProviderFetchArgs, UsageWindow } from "../types.ts";
 
 const ENDPOINT = "https://chatgpt.com/backend-api/wham/usage";
@@ -60,7 +60,7 @@ function parseWindow(fallbackLabel: string, raw: unknown): UsageWindow | undefin
 	if (usedPercent === undefined) return undefined;
 	const limitWindowSeconds = toNumber(window.limit_window_seconds);
 	const label = limitWindowSeconds !== undefined ? windowLabel(limitWindowSeconds) : fallbackLabel;
-	return { label, usedPercent, resetsAt: parseResetAt(window.reset_at) };
+	return { label, usedPercent, resetsAt: parseTimestamp(window.reset_at) };
 }
 
 /**
@@ -83,23 +83,14 @@ function parseSpendControlWindow(raw: unknown): UsageWindow | undefined {
 	return {
 		label: "monthly",
 		usedPercent: Math.max(0, usedPercent),
-		resetsAt: parseResetAt(reset),
+		resetsAt: parseTimestamp(reset),
 	};
-}
-
-function parseResetAt(value: unknown): number | undefined {
-	const numeric = toNumber(value);
-	if (numeric !== undefined) return numeric < 1e12 ? numeric * 1000 : numeric;
-	if (typeof value === "string") {
-		const parsed = Date.parse(value);
-		if (!Number.isNaN(parsed)) return parsed;
-	}
-	return undefined;
 }
 
 export const codexAdapter: ProviderAdapter = {
 	id: "openai-codex",
 	label: "Codex",
+	kind: "subscription",
 	async fetch({ token, accountId, signal, fetchImpl }: ProviderFetchArgs): Promise<AccountBalance> {
 		const headers: Record<string, string> = {
 			Authorization: `Bearer ${token}`,

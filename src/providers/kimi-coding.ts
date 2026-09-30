@@ -6,7 +6,7 @@
  * wallet balance is never mistaken for a token-plan quota.
  */
 
-import { parseTimestamp, toNumber } from "../parse.ts";
+import { asRecord, parseTimestamp, toNumber } from "../parse.ts";
 import type { AccountBalance, ProviderAdapter, ProviderFetchArgs, UsageWindow } from "../types.ts";
 
 const ENDPOINT = "https://api.kimi.com/coding/v1/usages";
@@ -25,17 +25,13 @@ type KimiResponse = {
 	boosterWallet?: unknown;
 };
 
-function object(value: unknown): Record<string, unknown> | undefined {
-	return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
-}
-
 function nonnegativeInteger(value: unknown): number | undefined {
 	const number = toNumber(value);
 	return number !== undefined && Number.isSafeInteger(number) && number >= 0 ? number : undefined;
 }
 
 function windowMinutes(value: unknown): number | undefined {
-	const row = object(value);
+	const row = asRecord(value);
 	const duration = nonnegativeInteger(row?.duration);
 	if (duration === undefined || duration === 0) return undefined;
 	const unit = row?.timeUnit;
@@ -52,7 +48,7 @@ function defaultLabel(minutes: number): string {
 }
 
 function parseRow(raw: unknown, minutes: number, label: string): UsageWindow | undefined {
-	const row = object(raw) as UsageRow | undefined;
+	const row = asRecord(raw) as UsageRow | undefined;
 	if (!row) return undefined;
 	const limit = nonnegativeInteger(row.limit);
 	if (limit === undefined || limit === 0) return undefined;
@@ -72,15 +68,15 @@ function parseRow(raw: unknown, minutes: number, label: string): UsageWindow | u
 }
 
 function parseWallet(raw: unknown): AccountBalance["balance"] | undefined {
-	const wallet = object(raw);
-	const balance = object(wallet?.balance);
+	const wallet = asRecord(raw);
+	const balance = asRecord(wallet?.balance);
 	if (!wallet || !balance || balance.type !== "BOOSTER") return undefined;
 	const rawLeft = nonnegativeInteger(balance.amountLeft);
 	if (rawLeft === undefined) return undefined;
 	const cents = rawLeft / FIXED_POINT_UNITS_PER_CENT;
 	const amount = Math.round(cents) / 100;
 	if (!Number.isFinite(amount)) return undefined;
-	const currency = object(wallet.monthlyChargeLimit)?.currency;
+	const currency = asRecord(wallet.monthlyChargeLimit)?.currency;
 	if (typeof currency !== "string" || !/^[A-Z]{3}$/u.test(currency)) return undefined;
 	return { amount, currency, note: "Kimi booster wallet remaining" };
 }
@@ -88,6 +84,7 @@ function parseWallet(raw: unknown): AccountBalance["balance"] | undefined {
 export const kimiCodingAdapter: ProviderAdapter = {
 	id: "kimi-coding",
 	label: "Kimi Coding",
+	kind: "subscription",
 	async fetch({ token, signal, fetchImpl }: ProviderFetchArgs): Promise<AccountBalance> {
 		const response = await fetchImpl(ENDPOINT, {
 			headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
@@ -95,7 +92,7 @@ export const kimiCodingAdapter: ProviderAdapter = {
 		});
 		if (!response.ok) throw new Error(`Kimi Coding usage API returned HTTP ${response.status}`);
 		const body: unknown = await response.json();
-		const root = object(body) as KimiResponse | undefined;
+		const root = asRecord(body) as KimiResponse | undefined;
 		if (!root) throw new Error("Kimi Coding usage API returned an unexpected response");
 		const windows: UsageWindow[] = [];
 		const seen = new Set<number>();
@@ -109,7 +106,7 @@ export const kimiCodingAdapter: ProviderAdapter = {
 		add(weekly, 10080);
 		if (Array.isArray(root.limits)) {
 			for (const raw of root.limits) {
-				const item = object(raw);
+				const item = asRecord(raw);
 				const minutes = windowMinutes(item?.window);
 				if (minutes === undefined) continue;
 				const name = typeof item?.name === "string" && item.name.trim() ? item.name.trim() : defaultLabel(minutes);

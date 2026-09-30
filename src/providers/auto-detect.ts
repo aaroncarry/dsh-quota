@@ -13,7 +13,7 @@
  * Transient network errors stay unpinned and are retried next time.
  */
 
-import { toNumber } from "../parse.ts";
+import { clampPercent, isRecord, toNumber } from "../parse.ts";
 import type { AccountBalance, ProviderAdapter, ProviderFetchArgs } from "../types.ts";
 
 /** Same-origin URL join: "https://x.com/v1" + "usage" → "https://x.com/v1/usage". */
@@ -59,39 +59,29 @@ async function requestJson(
 	return response.json();
 }
 
-function numberAt(payload: unknown, ...paths: string[][]): number | undefined {
+/** Return the first path that resolves to a value accepted by `pick`. */
+function firstAt<T>(payload: unknown, paths: string[][], pick: (value: unknown) => T | undefined): T | undefined {
 	for (const path of paths) {
 		let current: unknown = payload;
 		for (const segment of path) {
-			if (typeof current !== "object" || current === null) {
+			if (!isRecord(current)) {
 				current = undefined;
 				break;
 			}
-			current = (current as Record<string, unknown>)[segment];
+			current = current[segment];
 		}
-		const value = toNumber(current);
+		const value = pick(current);
 		if (value !== undefined) return value;
 	}
 	return undefined;
 }
 
-function stringAt(payload: unknown, ...paths: string[][]): string | undefined {
-	for (const path of paths) {
-		let current: unknown = payload;
-		for (const segment of path) {
-			if (typeof current !== "object" || current === null) {
-				current = undefined;
-				break;
-			}
-			current = (current as Record<string, unknown>)[segment];
-		}
-		if (typeof current === "string" && current.trim() !== "") return current.trim();
-	}
-	return undefined;
+function numberAt(payload: unknown, ...paths: string[][]): number | undefined {
+	return firstAt(payload, paths, toNumber);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+function stringAt(payload: unknown, ...paths: string[][]): string | undefined {
+	return firstAt(payload, paths, (value) => (typeof value === "string" && value.trim() !== "" ? value.trim() : undefined));
 }
 
 const deepseekCandidate: Candidate = {
@@ -143,11 +133,12 @@ const minimaxCandidate: Candidate = {
 				let usedPercent: number | undefined;
 				if (remainingPercent !== undefined) usedPercent = 100 - remainingPercent;
 				else if (total !== undefined && total > 0 && remainingCount !== undefined) {
-					usedPercent = (remainingCount / total) * 100;
+					// The count fields report what is left, so used = total - remaining.
+					usedPercent = ((total - remainingCount) / total) * 100;
 				}
 				if (usedPercent === undefined) throw new Error("response has no quota fields");
 				return {
-					windows: [{ label: "plan", usedPercent: Math.max(0, Math.min(100, usedPercent)) }],
+					windows: [{ label: "plan", usedPercent: clampPercent(usedPercent) }],
 					notes: [],
 				};
 			} catch (error) {
@@ -174,7 +165,7 @@ const zhipuCandidate: Candidate = {
 		const usedPercent = numberAt(limit, ["percentage"], ["usedPercentage"]);
 		if (usedPercent === undefined) throw new Error("response has no usage percentage");
 		return {
-			windows: [{ label: "tokens", usedPercent: Math.max(0, Math.min(100, usedPercent)) }],
+			windows: [{ label: "tokens", usedPercent: clampPercent(usedPercent) }],
 			notes: [],
 		};
 	},
@@ -301,6 +292,7 @@ export function createAutoDetectAdapter(id: string): ProviderAdapter {
 	return {
 		id,
 		label: id,
+		kind: "api",
 		async fetch(args: ProviderFetchArgs): Promise<AccountBalance> {
 			if (pinnedError) throw new Error(pinnedError);
 			if (!args.baseUrl) {

@@ -2,6 +2,7 @@
  * DeepSeek adapter: prepaid account balance via the public balance endpoint.
  */
 
+import { toNumber } from "../parse.ts";
 import type { AccountBalance, ProviderAdapter, ProviderFetchArgs } from "../types.ts";
 
 const ENDPOINT = "https://api.deepseek.com/user/balance";
@@ -18,15 +19,10 @@ interface DeepseekBalanceResponse {
 	balance_infos?: unknown;
 }
 
-function parseAmount(value: unknown): number | undefined {
-	if (typeof value === "number" && Number.isFinite(value)) return value;
-	if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
-	return undefined;
-}
-
 export const deepseekAdapter: ProviderAdapter = {
 	id: "deepseek",
 	label: "DeepSeek",
+	kind: "api",
 	async fetch({ token, signal, fetchImpl }: ProviderFetchArgs): Promise<AccountBalance> {
 		const response = await fetchImpl(ENDPOINT, {
 			headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
@@ -47,10 +43,10 @@ export const deepseekAdapter: ProviderAdapter = {
 			.map((entry): { amount: number; currency: string; granted?: number } | undefined => {
 				if (typeof entry !== "object" || entry === null) return undefined;
 				const info = entry as DeepseekBalanceInfo;
-				const amount = parseAmount(info.total_balance);
+				const amount = toNumber(info.total_balance);
 				if (amount === undefined) return undefined;
 				const currency = typeof info.currency === "string" && info.currency.trim() ? info.currency.trim().toUpperCase() : "CNY";
-				const granted = parseAmount(info.granted_balance);
+				const granted = toNumber(info.granted_balance);
 				return { amount, currency, granted };
 			})
 			.filter((entry): entry is { amount: number; currency: string; granted?: number } => entry !== undefined);

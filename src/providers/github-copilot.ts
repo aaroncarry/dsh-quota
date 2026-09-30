@@ -6,7 +6,7 @@
  * endpoint, no Copilot token exchange needed.
  */
 
-import { parseTimestamp, toNumber } from "../parse.ts";
+import { clampPercent, parseTimestamp, toNumber } from "../parse.ts";
 import type { AccountBalance, ProviderAdapter, ProviderFetchArgs, UsageWindow } from "../types.ts";
 
 const ENDPOINT = "https://github.com/copilot_internal/user";
@@ -72,12 +72,13 @@ function parseSnapshot(key: string, raw: unknown): UsageWindow | undefined {
 	// Placeholder shape: GitHub reports all-zero rows for token-based billing
 	// and some business seats; they carry no usable quota signal.
 	if (entitlement === 0 && remaining === 0) return undefined;
-	return { label, usedPercent: Math.max(0, Math.min(100, 100 - percentRemaining)) };
+	return { label, usedPercent: clampPercent(100 - percentRemaining) };
 }
 
 export const githubCopilotAdapter: ProviderAdapter = {
 	id: "github-copilot",
-	label: "Copilot",
+	label: "GitHub Copilot",
+	kind: "subscription",
 	async fetch({ token, signal, fetchImpl }: ProviderFetchArgs): Promise<AccountBalance> {
 		const response = await fetchImpl(ENDPOINT, {
 			headers: { Authorization: `token ${token}`, ...REQUEST_HEADERS },
@@ -129,6 +130,6 @@ export const githubCopilotAdapter: ProviderAdapter = {
 			? toNumber((snapshots.premium_interactions as CopilotSnapshot).overage_count)
 			: undefined;
 		if (overage !== undefined && overage > 0) notes.push(`additional usage ${overage}`);
-		return { providerId: "github-copilot", label: "Copilot", plan, windows, notes, fetchedAt: Date.now() };
+		return { providerId: "github-copilot", label: "GitHub Copilot", plan, windows, notes, fetchedAt: Date.now() };
 	},
 };

@@ -6,7 +6,7 @@
  * matching beta header.
  */
 
-import { parseTimestamp, toNumber } from "../parse.ts";
+import { clampPercent, parseTimestamp, toNumber } from "../parse.ts";
 import type { AccountBalance, ProviderAdapter, ProviderFetchArgs, UsageWindow } from "../types.ts";
 
 const ENDPOINT = "https://api.anthropic.com/api/oauth/usage";
@@ -36,12 +36,13 @@ function parseWindow(label: string, raw: unknown): UsageWindow | undefined {
 	const window = raw as AnthropicUsageWindow;
 	const usedPercent = toNumber(window.utilization);
 	if (usedPercent === undefined) return undefined;
-	return { label, usedPercent: Math.max(0, Math.min(100, usedPercent)), resetsAt: parseTimestamp(window.resets_at) };
+	return { label, usedPercent: clampPercent(usedPercent), resetsAt: parseTimestamp(window.resets_at) };
 }
 
 export const anthropicAdapter: ProviderAdapter = {
 	id: "anthropic",
 	label: "Claude",
+	kind: "subscription",
 	async fetch({ token, signal, fetchImpl }: ProviderFetchArgs): Promise<AccountBalance> {
 		const response = await fetchImpl(ENDPOINT, {
 			headers: {
