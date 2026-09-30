@@ -7,7 +7,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
-import { IconDataOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconGaugeOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { QuotaStore } from './store.ts'
 import { QuotaPage, QuotaPill } from './QuotaView.tsx'
@@ -33,7 +33,7 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
     name: 'sidebar.panellist', id: PANEL_ID, order: 65,
     label: () => ctx.locale.bind('dshQuota')('title'),
-  }, function QuotaSidebarIcon(_props: PropsRuntime<'sidebar.panellist'>) { return <IconDataOutlineRegular /> }))
+  }, function QuotaSidebarIcon(_props: PropsRuntime<'sidebar.panellist'>) { return <IconGaugeOutlineRegular /> }))
   ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
     name: 'conversation.composer.dock', id: 'dsh-quota', order: 30, locale: 'dshQuota',
     inject: () => ({ store, openPage: () => ctx.layout.selectPanel(PANEL_ID) }),

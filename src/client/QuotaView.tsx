@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  IconDataOutlineRegular, IconRefreshOutlineRegular, IconWarningOutlineRegular,
+  IconGaugeOutlineRegular, IconRefreshOutlineRegular, IconWarningOutlineRegular,
   IconSearchOutlineRegular, IconPlusOutlineRegular, IconCloseOutlineRegular,
   IconChevronRightOutlineRegular, IconSettingsOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -144,7 +144,7 @@ function AccountDetails({ view, defaults, copy, store, configure }: {
 }
 
 function Empty({ copy, add }: { copy: Copy; add?: () => void }) {
-  return <div className="dshq-empty"><IconDataOutlineRegular /><strong>{copy('empty')}</strong><p>{copy('emptyHint')}</p>{add && <button className="dshq-primary" onClick={add}><IconPlusOutlineRegular />{copy('add')}</button>}</div>
+  return <div className="dshq-empty"><IconGaugeOutlineRegular /><strong>{copy('empty')}</strong><p>{copy('emptyHint')}</p>{add && <button className="dshq-primary" onClick={add}><IconPlusOutlineRegular />{copy('add')}</button>}</div>
 }
 
 /** Sentinel option value; never a real provider id because ids are lowercase slugs. */
@@ -294,7 +294,7 @@ export function QuotaPage({ store, t }: PageProps) {
   const summary = useMemo(() => summarize(snapshot.accounts), [snapshot.accounts])
   const refresh = () => { setError(undefined); void store.mutate({ action: 'refresh' }).catch(cause => setError(messageOf(cause))) }
   return <main className="dshq-page"><div className="dshq-page-inner">
-    <div className="dshq-heading"><div><span className="dshq-eyebrow"><IconDataOutlineRegular /> DeepSeek Harness</span><h1>{copy('title')}</h1><p>{copy('subtitle')}</p></div>
+    <div className="dshq-heading"><div><span className="dshq-eyebrow"><IconGaugeOutlineRegular /> DeepSeek Harness</span><h1>{copy('title')}</h1><p>{copy('subtitle')}</p></div>
       <div className="dshq-heading-actions">
         <button className={cx(snapshot.refreshing && 'dshq-spin')} onClick={refresh} disabled={snapshot.refreshing}><IconRefreshOutlineRegular />{snapshot.refreshing ? copy('refreshing') : copy('refresh')}</button>
         <button className="dshq-primary" onClick={() => setForm('new')}><IconPlusOutlineRegular />{copy('add')}</button>
@@ -365,9 +365,9 @@ export function QuotaPill({ store, t, useProjection, openPage }: PillProps) {
   }, [open])
   const refresh = () => { setRefreshError(undefined); void store.mutate({ action: 'refresh' }).catch(cause => setRefreshError(messageOf(cause))) }
   return <span className="dshq-pill-wrap"><button ref={anchor} className={cx('dshq-pill', current && isAttention(current) && 'attention')} aria-haspopup="dialog" aria-expanded={open} onClick={() => { setOpen(!open); if (!open) void store.load(true) }} title={current ? `${current.account.label} · ${metric ? `${metric.caption} ${metric.value}` : copy('quota')}` : copy('noCurrent')}>
-    <IconDataOutlineRegular /><span>{summary}</span>{count > 0 && <i className="dshq-alert-dot" />}</button>
+    <IconGaugeOutlineRegular /><span>{summary}</span>{count > 0 && <i className="dshq-alert-dot" />}</button>
     {open && createPortal(<div ref={panel} className="dshq-popup" role="dialog" aria-label={copy('title')}>
-      <header><strong><IconDataOutlineRegular />{copy('title')}</strong><span>
+      <header><strong><IconGaugeOutlineRegular />{copy('title')}</strong><span>
         <button className={cx(snapshot.refreshing && 'dshq-spin')} title={copy('refresh')} aria-label={copy('refresh')} disabled={snapshot.refreshing} onClick={refresh}><IconRefreshOutlineRegular /></button>
         <button aria-label={copy('cancel')} onClick={() => setOpen(false)}><IconCloseOutlineRegular /></button></span></header>
       {refreshError && <div className="dshq-notice dshq-popup-notice"><IconWarningOutlineRegular /><span>{refreshError}</span></div>}
