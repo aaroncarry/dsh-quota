@@ -5,19 +5,17 @@ import { createAutoDetectAdapter } from './providers/auto-detect.ts'
 import { getBuiltinAdapters } from './providers/index.ts'
 import { accountSchema, quotaDomain } from './domain.ts'
 import type { Config } from './config.ts'
-import type { AccountBalance, AccountState, AccountView, MonitoredAccount, QuotaSnapshot } from './types.ts'
+import type { AccountBalance, AccountState, AccountView, MonitoredAccount, ProviderInfo, QuotaSnapshot } from './types.ts'
 
 type QuotaDomain = Domain<typeof quotaDomain>
 
-const LABELS: Record<string, string> = {
-  'openai-codex': 'Codex', anthropic: 'Claude', 'github-copilot': 'GitHub Copilot',
-  'kimi-coding': 'Kimi Coding', minimax: 'MiniMax', 'minimax-cn': 'MiniMax CN',
-  moonshotai: 'Moonshot AI', 'moonshotai-cn': 'Moonshot AI CN',
-  'opencode-zen': 'OpenCode Zen', openrouter: 'OpenRouter',
-  'vercel-ai-gateway': 'Vercel AI Gateway', zai: 'Z.AI', deepseek: 'DeepSeek',
-}
-const API_PROVIDERS = new Set(['openrouter', 'vercel-ai-gateway', 'moonshotai', 'moonshotai-cn', 'deepseek'])
 const adapters = new Map(getBuiltinAdapters().map(adapter => [adapter.id, adapter]))
+const providers: ProviderInfo[] = [...adapters.values()].map(({ id, label, kind }) => ({ id, label, kind }))
+
+/** Errors that mean "no usable credential is configured", not "the credential was rejected". */
+const UNCONFIGURED_ERROR = /尚未配置|未包含可用/
+/** Errors that mean the provider rejected, or the grant no longer carries, valid authorization. */
+const AUTH_ERROR = /授权|令牌|HTTP 40[13]\b|login|expired|unauthori[sz]ed/i
 
 /** Resolve per-provider source without sending secret values to the renderer. */
 export async function resolveAccountCredential(credentials: CredentialProvider, account: MonitoredAccount): Promise<{ token: string; accountId?: string }> {
@@ -46,10 +44,13 @@ export async function resolveAccountCredential(credentials: CredentialProvider, 
 /** Account health preserves the last successful balance when a refresh fails. */
 export function accountState(account: MonitoredAccount, result: AccountBalance | undefined, error: string | undefined, config: Config): AccountState {
   if (!account.enabled) return 'paused'
-  if (error) return /授权|凭据|令牌|HTTP 401|HTTP 403|login|expired/i.test(error) ? 'auth' : 'stale'
+  if (error) return UNCONFIGURED_ERROR.test(error) ? 'unconfigured' : AUTH_ERROR.test(error) ? 'auth' : 'stale'
   if (!result) return 'loading'
   if (result.windows.some(window => window.usedPercent >= (account.alertPercent ?? config.alertPercent))) return 'low'
-  if (result.balance !== undefined && result.balance.amount <= (account.lowBalance ?? config.lowBalance)) return 'low'
+  // A balance next to quota windows (Claude extra usage, Kimi booster wallet) is auxiliary and
+  // must not flag the whole subscription unless the account sets its own low-balance threshold.
+  const balanceIsPrimary = result.windows.length === 0 || account.lowBalance !== undefined
+  if (balanceIsPrimary && result.balance !== undefined && result.balance.amount <= (account.lowBalance ?? config.lowBalance)) return 'low'
   return 'ok'
 }
 
@@ -59,6 +60,7 @@ export class QuotaMonitor {
   private refreshing = false
   private refreshedAt: number | undefined
   private pending: Promise<void> | undefined
+  private pendingIsFull = false
   private readonly detected = new Map<string, ReturnType<typeof createAutoDetectAdapter>>()
   private readonly stop = new AbortController()
 
@@ -74,8 +76,8 @@ export class QuotaMonitor {
       if (!adapters.has(providerId)) continue
       const id = `record:${providerId}`
       if (known.has(id)) continue
-      saved.push({ id, providerId, label: LABELS[providerId] ?? providerId,
-        kind: API_PROVIDERS.has(providerId) ? 'api' : 'subscription',
+      const adapter = adapters.get(providerId)!
+      saved.push({ id, providerId, label: adapter.label, kind: adapter.kind,
         source: { type: 'record', key: entry.key }, enabled: true })
     }
     return saved.sort((left, right) => left.label.localeCompare(right.label))
@@ -93,15 +95,21 @@ export class QuotaMonitor {
         ...(error ? { error } : {}),
         ...(previous?.attemptedAt ? { attemptedAt: previous.attemptedAt } : {}) }
     }), ...(this.refreshedAt ? { refreshedAt: this.refreshedAt } : {}),
+    providers, defaults: { alertPercent: this.config.alertPercent, lowBalance: this.config.lowBalance },
     refreshing: this.refreshing, intervalMinutes: this.config.intervalMinutes }
   }
 
   async refresh(id?: string): Promise<QuotaSnapshot> {
     if (this.stop.signal.aborted) throw new Error('额度监控已停止')
-    if (this.pending) {
-      await this.pending
-      return id === undefined ? this.snapshot() : this.refresh(id)
+    // A full refresh already in flight covers another full request. Anything else waits its turn
+    // so a scoped refresh never swallows a full one (and vice versa).
+    if (id === undefined && this.pendingIsFull && this.pending) {
+      await this.pending.catch(() => {})
+      return this.snapshot()
     }
+    while (this.pending) await this.pending.catch(() => {})
+    if (this.stop.signal.aborted) throw new Error('额度监控已停止')
+    this.pendingIsFull = id === undefined
     this.pending = this.refreshNow(id).finally(() => { this.pending = undefined })
     await this.pending
     return this.snapshot()
@@ -109,7 +117,7 @@ export class QuotaMonitor {
 
   async dispose(): Promise<void> {
     this.stop.abort()
-    await this.pending
+    await this.pending?.catch(() => {})
   }
 
   private async refreshNow(id?: string): Promise<void> {
@@ -124,7 +132,7 @@ export class QuotaMonitor {
         }
       })
       await Promise.all(workers)
-      this.refreshedAt = Date.now()
+      if (id === undefined) this.refreshedAt = Date.now()
     } finally { this.refreshing = false }
   }
 

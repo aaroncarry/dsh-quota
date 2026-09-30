@@ -2,6 +2,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import { Config, type Config as QuotaConfig } from './config.ts'
+import { describeError } from './errors.ts'
 import { quotaDomain } from './domain.ts'
 import { QuotaMonitor } from './monitor.ts'
 
@@ -52,7 +53,7 @@ export async function apply(ctx: Context, config: QuotaConfig): Promise<void> {
           case 'remove': return json(await monitor.remove(mutation.id))
         }
       } catch (error) {
-        return json({ error: error instanceof Error ? error.message : String(error) }, 400)
+        return json({ error: describeError(error) }, 400)
       }
     },
   }), 'dsh-quota: API route')
