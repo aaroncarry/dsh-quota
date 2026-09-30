@@ -31,6 +31,7 @@ test('browser artifact registers the DSH module and its three UI slots', async (
   const balance = {
     accounts: [{ account: { id: 'record:deepseek', providerId: 'deepseek', label: 'DeepSeek', kind: 'api', source: { type: 'record', key: 'llm-pi-ai/deepseek' }, enabled: true },
       state: 'ok', result: { providerId: 'deepseek', label: 'DeepSeek', windows: [], balance: { amount: 12.5, currency: 'CNY' }, notes: [], fetchedAt: Date.now() }, attemptedAt: Date.now() }],
+    providers: [{ id: 'deepseek', label: 'DeepSeek', kind: 'api' }], defaults: { alertPercent: 80, lowBalance: 5 },
     refreshing: false, intervalMinutes: 5,
   }
   const page = slots.find(slot => slot.options.name === 'main')

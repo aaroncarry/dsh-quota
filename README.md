@@ -4,7 +4,7 @@ DeepSeek Harness Desktop 的额度监控插件。界面包括侧边栏的「额�
 
 ## 支持的连接
 
-- 订阅用量：Codex、Claude、GitHub Copilot、Kimi Coding、MiniMax、Moonshot AI、OpenCode Zen、Z.AI 等已实现的 `pi-usage` 服务商。
+- 订阅用量：Codex、Claude、GitHub Copilot、Kimi Coding、MiniMax、Moonshot AI、OpenCode Go、Z.AI 等已实现的 `pi-usage` 服务商。
 - API 余额：DeepSeek、OpenRouter、Vercel AI Gateway、Moonshot AI 等服务商的余额接口。
 - 中转站：为连接填写服务地址后，自动探测 New API 与 Sub2API 的余额接口。探测结果会在本次运行期间复用。
 
@@ -33,7 +33,7 @@ dsh plugin --profile desktop add file:D:/Code/dsh-quota/dsh-quota-0.1.0.tgz
 
 重新打开 Desktop 后，侧边栏出现「额度看板」，对话底部出现额度缩略按钮。修改源码后重新构建、更新版本号、重新打包安装，再重启 Desktop。开发中也可用 `file:D:/Code/dsh-quota` 安装本地目录。
 
-插件后台默认每 5 分钟查询一次，每个请求 15 秒超时，最多 4 个并发请求。可以在 bundle 配置的 `dsh-quota` 行设置 `intervalMinutes`、`requestTimeoutMs`、`maxConcurrent`、`alertPercent` 和 `lowBalance`。账户独立的提醒阈值在主页面的「监控设置」中修改。账户列表和阈值保存在 Harness 的 `dsh_quota` storage domain，不保存密钥。
+插件后台默认每 5 分钟查询一次，每个请求 15 秒超时，最多 4 个并发请求。可以在 bundle 配置的 `dsh-quota` 行设置 `intervalMinutes`、`requestTimeoutMs`、`maxConcurrent`、`alertPercent` 和 `lowBalance`。账户独立的提醒阈值在主页面的「监控设置」中修改，留空表示沿用上述全局默认值。订阅同时带有额度窗口与余额（如 Claude 的额外用量）时，余额仅在该账户自行设置了低余额提醒后才会触发告警；低余额提醒按余额自身的币种比较，不做汇率换算。账户列表和阈值保存在 Harness 的 `dsh_quota` storage domain，不保存密钥。
 
 ## 开发与来源
 

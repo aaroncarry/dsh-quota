@@ -1,7 +1,11 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import type { MonitoredAccount, QuotaSnapshot } from '../types.ts'
 
-const initial: QuotaSnapshot = { accounts: [], refreshing: false, intervalMinutes: 5 }
+const initial: QuotaSnapshot = {
+  accounts: [], providers: [], defaults: { alertPercent: 80, lowBalance: 5 }, refreshing: false, intervalMinutes: 5,
+}
+/** Tolerate a Host that predates newer snapshot fields. */
+const normalize = (snapshot: QuotaSnapshot): QuotaSnapshot => ({ ...initial, ...snapshot })
 type Mutation = { action: 'refresh'; id?: string } | { action: 'save'; account: MonitoredAccount } | { action: 'remove'; id: string }
 
 /** Browser mirror of Host results; only account metadata and balances cross the route. */
@@ -46,7 +50,7 @@ export class QuotaStore {
         const data = await response.json() as QuotaSnapshot
         this.lastLoaded = Date.now()
         this.error = undefined
-        this.publish(data)
+        this.publish(normalize(data))
       } catch (cause) {
         this.error = cause instanceof Error ? cause.message : String(cause)
         this.publish({ ...this.value })
@@ -61,11 +65,12 @@ export class QuotaStore {
     try {
       const response = await fetch('/api/quota', { method: 'POST', credentials: 'same-origin',
         headers: { 'content-type': 'application/json' }, body: JSON.stringify(action) })
-      const data = await response.json() as QuotaSnapshot | { error: string }
-      if (!response.ok) throw new Error('error' in data ? data.error : `HTTP ${response.status}`)
+      // A gateway error page is not JSON; keep the HTTP status instead of a parse failure.
+      const data = await response.json().catch(() => undefined) as QuotaSnapshot | { error?: string } | undefined
+      if (!response.ok) throw new Error(data && 'error' in data && data.error ? data.error : `HTTP ${response.status}`)
       this.lastLoaded = Date.now()
       this.error = undefined
-      this.publish(data as QuotaSnapshot)
+      this.publish(normalize(data as QuotaSnapshot))
     } catch (cause) {
       if (refreshing) this.publish({ ...this.value, refreshing: false })
       throw cause
