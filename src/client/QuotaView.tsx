@@ -147,6 +147,8 @@ function Empty({ copy, add }: { copy: Copy; add?: () => void }) {
   return <div className="dshq-empty"><IconDataOutlineRegular /><strong>{copy('empty')}</strong><p>{copy('emptyHint')}</p>{add && <button className="dshq-primary" onClick={add}><IconPlusOutlineRegular />{copy('add')}</button>}</div>
 }
 
+/** Sentinel option value; never a real provider id because ids are lowercase slugs. */
+const CUSTOM_PROVIDER = '__custom__'
 const FILTERS = ['all', 'subscription', 'api', 'relay'] as const
 type Filter = typeof FILTERS[number]
 function FilterTabs({ value, onChange, copy }: { value: Filter; onChange: (next: Filter) => void; copy: Copy }) {
@@ -171,7 +173,9 @@ function AccountForm({ existing, close, store, copy, providers, defaults }: {
   const [confirmingRemoval, setConfirmingRemoval] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
-  const first = useRef<HTMLInputElement>(null)
+  // A gateway uses a custom id, so anything outside the built-in list is edited as free text.
+  const [custom, setCustom] = useState(existing !== undefined && !providers.some(provider => provider.id === existing.providerId))
+  const first = useRef<HTMLSelectElement>(null)
   const known = providers.find(provider => provider.id === providerId.trim())
   useEffect(() => { first.current?.focus() }, [])
   useEffect(() => {
@@ -209,21 +213,28 @@ function AccountForm({ existing, close, store, copy, providers, defaults }: {
     void run(() => store.mutate({ action: 'remove', id: existing.id }))
   }
   const changeProvider = (next: string) => {
-    setProviderId(next)
-    const info = providers.find(provider => provider.id === next.trim())
+    if (next === CUSTOM_PROVIDER) {
+      setCustom(true); setProviderId(''); setKind('relay')
+      return
+    }
+    setCustom(false); setProviderId(next)
+    const info = providers.find(provider => provider.id === next)
     if (info) setKind(info.kind)
   }
   const changeKind = (next: MonitoredAccount['kind']) => {
     setKind(next)
     // A gateway needs a custom id; built-in ids are rejected for gateways.
-    if (next === 'relay' && known) setProviderId('new-api')
+    if (next === 'relay' && known) { setCustom(true); setProviderId('new-api') }
   }
   return createPortal(<div className="dshq-modal-mask" onPointerDown={event => { if (event.target === event.currentTarget) close() }}>
     <form className="dshq-modal" role="dialog" aria-modal="true" aria-label={existing ? copy('settings') : copy('add')} onSubmit={event => { event.preventDefault(); void save() }}>
       <header><div><h2>{existing ? copy('settings') : copy('add')}</h2><p>{copy('configHint')}</p></div><button type="button" onClick={close} aria-label={copy('cancel')}><IconCloseOutlineRegular /></button></header>
       <div className="dshq-fields">
-        <label>{copy('provider')}<input ref={first} value={providerId} onChange={event => changeProvider(event.target.value)} required disabled={existing?.source.type === 'record'} list="dshq-providers" /></label>
-        <datalist id="dshq-providers">{providers.map(provider => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</datalist>
+        <label>{copy('provider')}<select ref={first} value={custom ? CUSTOM_PROVIDER : providerId} onChange={event => changeProvider(event.target.value)} disabled={existing?.source.type === 'record'}>
+          {providers.map(provider => <option key={provider.id} value={provider.id}>{provider.label} · {provider.id}</option>)}
+          <option value={CUSTOM_PROVIDER}>{copy('customProvider')}</option>
+        </select></label>
+        {custom && <label>{copy('customProviderId')}<input value={providerId} onChange={event => setProviderId(event.target.value)} required placeholder="new-api" autoFocus /></label>}
         <label>{copy('label')}<input value={label} onChange={event => setLabel(event.target.value)} maxLength={80} placeholder={known?.label ?? providerId} /></label>
         <label>{copy('kind')}<select value={kind} onChange={event => changeKind(event.target.value as MonitoredAccount['kind'])}><option value="subscription">{copy('subscriptions')}</option><option value="api">{copy('api')}</option><option value="relay">{copy('relays')}</option></select></label>
         {kind === 'relay' && <p className="dshq-muted">{copy('relayHint')}</p>}
